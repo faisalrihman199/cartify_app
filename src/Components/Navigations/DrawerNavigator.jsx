@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { Ionicons,MaterialCommunityIcons } from '@expo/vector-icons'; // Ensure to install @expo/vector-icons
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import Dashboard from '../../Screens/Dashboard';
 import UserProfilePage from '../../Screens/UserProfilePage';
 import CartPage from '../../Screens/CartPage';
@@ -9,44 +11,96 @@ import ScanProduct from '../../Screens/ScanProduct';
 import BillHistory from '../../Screens/BillHistory';
 import ProceedBill from '../../Screens/ProceedBill';
 import CustomDrawerContent from './CustomDrawerContent';
+import AdminDrawer from './AdminDrawer';
+import AdminDashboard from '../../Screens/AdminDashboard';
+import CategoriesPage from '../../Screens/ChildAdmin/CategoriesPage';
+import ProductPage from '../../Screens/ChildAdmin/ProductPage';
+import Brands from '../../Screens/ChildAdmin/BrandsPage';
+import POSBill from '../../Screens/ChildAdmin/POSBill';
+import AddProductPage from '../../Screens/ChildAdmin/AddProductPage';
 
 const Drawer = createDrawerNavigator();
 
 const DrawerNavigator = () => {
+  const [user, setUser] = useState(null);
+
+  // Function to get user from AsyncStorage
+  const getUserFromAsyncStorage = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('user');
+      return userData ? JSON.parse(userData) : null;
+    } catch (error) {
+      console.error("Error retrieving user from AsyncStorage:", error);
+      return null;
+    }
+  };
+
+  // Fetch user on component mount
+  useEffect(() => {
+    (async () => {
+      const storedUser = await getUserFromAsyncStorage();
+      console.log("Stored User:", storedUser);
+      setUser(storedUser);
+    })();
+  }, []);
+
+  // Dynamic drawer content and initial route
+  const isAdmin = user?.role === 'admin';
+  const initialRoute = isAdmin ? 'AdminDashboard' : 'Dashboard';
+
   return (
     <Drawer.Navigator
-      initialRouteName="Dashboard"
+      initialRouteName={initialRoute}
       screenOptions={({ navigation }) => ({
         headerStyle: { backgroundColor: '#4e92cc' },
         headerTintColor: '#ffffff',
         headerTitleStyle: { fontWeight: 'bold' },
-        headerTitleAlign: 'center', // Ensures the title is centered
+        headerTitleAlign: 'center',
         headerTitle: () => (
           <View style={styles.headerCenter}>
+            
             <Image
-              source={require('../../assets/images/onBoard/cart.png')} // Adjust the path to your actual image
+              source={require('../../assets/images/onBoard/cart.png')}
               style={styles.headerLogo}
             />
             <Text style={styles.headerTitle}>Cartify</Text>
           </View>
         ),
         headerRight: () => (
-          <TouchableOpacity
-            style={styles.cartIcon}
-            onPress={() => navigation.navigate('Cart')}
-          >
-            <MaterialCommunityIcons name="cart-variant" size={24} color="#ffffff" />
-          </TouchableOpacity>
+          !isAdmin && (
+            <TouchableOpacity
+              style={styles.cartIcon}
+              onPress={() => navigation.navigate('Cart')}
+            >
+              <MaterialCommunityIcons name="cart-variant" size={24} color="#ffffff" />
+            </TouchableOpacity>
+          )
         ),
       })}
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      drawerContent={(props) =>
+        isAdmin ? <AdminDrawer {...props} /> : <CustomDrawerContent {...props} />
+      }
     >
-      <Drawer.Screen name="Dashboard" component={Dashboard} />
-      <Drawer.Screen name="Profile" component={UserProfilePage} />
-      <Drawer.Screen name="ScanProduct" component={ScanProduct} />
-      <Drawer.Screen name="Cart" component={CartPage} />
-      <Drawer.Screen name="Bill" component={ProceedBill} />
-      <Drawer.Screen name="BillHistory" component={BillHistory} />
+      {isAdmin ? (
+        <>
+          <Drawer.Screen name="AdminDashboard" component={AdminDashboard} />
+          <Drawer.Screen name="Categories" component={CategoriesPage} />
+          <Drawer.Screen name="Brands" component={Brands} />
+          <Drawer.Screen name="POSBills" component={POSBill} />
+          <Drawer.Screen name="Products" component={ProductPage} />
+          <Drawer.Screen name="AddProduct" component={AddProductPage} />
+          <Drawer.Screen name="BillHistory" component={BillHistory} />
+        </>
+      ) : (
+        <>
+          <Drawer.Screen name="Dashboard" component={Dashboard} />
+          <Drawer.Screen name="Profile" component={UserProfilePage} />
+          <Drawer.Screen name="ScanProduct" component={ScanProduct} />
+          <Drawer.Screen name="Cart" component={CartPage} />
+          <Drawer.Screen name="Bill" component={ProceedBill} />
+          <Drawer.Screen name="BillHistory" component={BillHistory} />
+        </>
+      )}
     </Drawer.Navigator>
   );
 };
@@ -58,8 +112,8 @@ const styles = StyleSheet.create({
   headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center', // Ensures content within the header is centered
-    flex: 1, // Ensures it takes up the entire available header space
+    justifyContent: 'center',
+    flex: 1,
   },
   headerLogo: {
     width: 30,

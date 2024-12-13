@@ -23,7 +23,7 @@ const Forgot = () => {
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // State for loader
   const navigation = useNavigation();
-  const { forgot, showToast } = useAPI();
+  const { sendOTP, showToast } = useAPI();
 
   const handleResetPassword = async () => {
     if (email === "" || password === "" || confirmPassword === "") {
@@ -43,9 +43,9 @@ const Forgot = () => {
     };
 
     try {
-      await forgot(otpEmail); // Call forgot function from API context
+      await sendOTP(otpEmail); // Call forgot function from API context
       showToast("success", "OTP sent successfully");
-      navigation.navigate("OTPScreen", { state: data }); // Navigate to OTP verification screen
+      navigation.navigate("Otp", { state: data }); // Navigate to OTP verification screen
       
     } catch (err) {
       console.error("Error:", err.message);

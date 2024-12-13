@@ -18,7 +18,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "com.faisalrihman199.FYP"
     },
     "web": {
       "favicon": "./src/assets/favicon.png"
@@ -26,6 +30,11 @@
     "plugins": [
       "expo-font",
       "expo-barcode-scanner"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bcda3a32-5d74-431e-b519-59c690f3e4bc"
+      }
+    }
   }
 }

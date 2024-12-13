@@ -16,7 +16,7 @@ const OTPScreen = ({ route }) => {
   const [otp, setOtp] = useState(Array(6).fill("")); // To hold the OTP digits
   const [loading, setLoading] = useState(false); // Loading state
   const navigation = useNavigation();
-  let { state } = route.params;
+  let { state } = route?.params;
 
   // Create refs for each OTP input field
   const otpRefs = useRef([]);
@@ -32,26 +32,49 @@ const OTPScreen = ({ route }) => {
       otpRefs.current[index + 1].focus();
     }
   };
-  const { reset } = useAPI();
+  const { verifyOTP, sendOTP,showToast } = useAPI();
 
+  // Resend OTP
+  const handleResend = () => {
+    setLoading(true); 
+
+    sendOTP({ email: state.email })
+      .then((res) => {
+        if (res.success) {
+          console.log(res);
+          showToast('success', res.message);
+          navigation.navigate("Otp", { state });
+        }
+      })
+      .catch((err) => {
+        showToast('error', 'Failed to Send OTP');
+        console.log("Error:", err);
+      })
+      .finally(() => {
+        setLoading(false); // Always stop loading after request is complete
+      });
+  };
+
+  // Verify OTP
   const handleVerifyOtp = () => {
     if (otp.join("").length === 6) {
       setLoading(true); // Start loading
       state.otp = otp.join("");
       console.log("OTP data is:", state);
-
-      reset(state)
+      const endpoint=state?.name?'signup':'resetPassword'
+      verifyOTP(state,endpoint)
         .then((res) => {
           console.log("Response From API is:", res.data);
           Alert.alert("Success", res.message);
-          setLoading(false); // Stop loading
           setOtp(Array(6).fill("")); // Clear OTP fields
-          navigation.navigate("Login")
+          navigation.navigate("Login");
         })
         .catch((err) => {
           console.log("Error:", err);
           Alert.alert("Error", "OTP Verification Failed!");
-          setLoading(false); // Stop loading
+        })
+        .finally(() => {
+          setLoading(false); // Stop loading after the request is complete
         });
     } else {
       Alert.alert("Error", "Please enter a valid OTP!");
@@ -63,7 +86,7 @@ const OTPScreen = ({ route }) => {
       <View style={styles.card}>
         <Text style={styles.title}>Enter OTP</Text>
         <Text style={styles.subtitle}>
-          We have sent a verification code to your email. Please enter the code
+          We have sent a verification code to your {state.email}. Please enter the code
           below to verify.
         </Text>
 
@@ -108,7 +131,7 @@ const OTPScreen = ({ route }) => {
         <View style={styles.registerContainer}>
           <Text style={styles.registerText}>Didn't receive the OTP?</Text>
           <TouchableOpacity
-            onPress={() => Alert.alert("Resend OTP", "OTP has been resent.")}
+            onPress={handleResend}
           >
             <Text style={styles.registerButton}> Resend OTP</Text>
           </TouchableOpacity>

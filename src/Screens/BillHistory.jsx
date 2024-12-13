@@ -62,10 +62,11 @@ const BillHistoryPage = () => {
       {/* Date Range Pickers */}
       <View style={styles.datePickers}>
         <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-          <Text style={styles.dateButtonText}>Start Date: {startDate.toLocaleDateString()}</Text>
+          <Text style={styles.dateButtonText}>
+            {startDate.toLocaleDateString()}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-          <Text style={styles.dateButtonText}>End Date: {endDate.toLocaleDateString()}</Text>
+          <Text style={styles.dateButtonText}>{endDate.toLocaleDateString()}</Text>
         </TouchableOpacity>
       </View>
 

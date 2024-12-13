@@ -7,70 +7,56 @@ import {
   StyleSheet,
   Image,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAPI } from "../Context/APIContext";
-import Toast from "react-native-toast-message";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScrollView } from "react-native-gesture-handler";
 
 const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false); // Loading state
   const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const navigation = useNavigation();
   const { login, showToast, getUser } = useAPI();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (email === "" || password === "") {
       Alert.alert("Error", "Please fill in all fields!");
-    } else {
-      const data = {
-        email,
-        password
-      }
-      console.log("Please Login with :", data);
-      navigation.navigate('MainApp')
-      
-      // console.log("Please Login from :", data);
-      // login(data)
-      //   .then((res) => {
-      //     console.log("Response:", res); // Log the full response to check its structure
+      return;
+    }
+    setLoading(true); // Start loading
+    const data = { email, password };
+    console.log("Attempting Login with:", data);
 
-      //     if (res.success) {
-      //       if (res.status === "pending") {
-      //         showToast("error", "Your account is pending approval.");
-      //       } else {
-      //         navigation.navigate("MainDashboard");
-
-      //       }
-      //     } else {
-      //       showToast("error", res.message);
-      //     }
-      //   })
-      //   .catch((err) => {
-      //     console.log("Error:", err);
-      //     showToast("error", "Something went wrong. Please try again later.");
-      //   });
-
-
-
+    try {
+      const res = await login(data);
+      console.log("Login response:", res);
+      setLoading(false); // Stop loading after success
+      navigation.navigate("MainApp");
+    } catch (err) {
+      console.log("Login error:", err);
+      setLoading(false); // Stop loading on error
+      Alert.alert("Login Failed", "Please check your credentials and try again.");
     }
   };
-  const [isLogged, setLogged] = useState(null);
+
   useEffect(() => {
-    const user = getUser()._j
+    const user = getUser()?._j;
     if (user) {
-      navigation.navigate("MainDashboard");
+      console.log("User is already logged in:", user);
+      navigation.navigate("MainApp");
     }
-  }, [getUser])
+  }, [getUser]);
 
   return (
     <LinearGradient colors={["#4e92cc", "#006d77"]} style={styles.container}>
-      
-        <ScrollView contentContainerStyle={styles.card} showsVerticalScrollIndicator={false}>
-        <View >
+      <ScrollView contentContainerStyle={styles.card} showsVerticalScrollIndicator={false}>
+        <View>
           <Image
             source={require("../assets/images/Login/cart.png")}
             style={styles.logo}
@@ -116,8 +102,16 @@ const LoginScreen = () => {
           </TouchableOpacity>
 
           {/* Login Button */}
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginButtonText}>Login</Text>
+          <TouchableOpacity
+            style={[styles.loginButton, loading && styles.disabledButton]}
+            onPress={handleLogin}
+            disabled={loading} // Disable button when loading
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
           </TouchableOpacity>
 
           {/* Register Link */}
@@ -126,11 +120,9 @@ const LoginScreen = () => {
             <TouchableOpacity onPress={() => navigation.navigate("Register")}>
               <Text style={styles.registerButton}> Register</Text>
             </TouchableOpacity>
-
           </View>
         </View>
-
-        </ScrollView>
+      </ScrollView>
     </LinearGradient>
   );
 };
@@ -145,7 +137,7 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     backgroundColor: "rgb(255,255,255)",
-    marginTop:'25%',
+    marginTop: '25%',
     padding: 25,
     borderRadius: 30,
     elevation: 12,
@@ -154,7 +146,6 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     shadowOffset: { width: 0, height: 5 },
     overflow: "hidden",
-
   },
   logo: {
     width: 100,
@@ -184,7 +175,7 @@ const styles = StyleSheet.create({
     paddingBottom: 5,
   },
   input: {
-    flex: 1, // Allow text input to take available space
+    flex: 1,
     height: 50,
     fontSize: 16,
     color: "#333",
@@ -210,6 +201,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   loginButtonText: {
     color: "#fff",

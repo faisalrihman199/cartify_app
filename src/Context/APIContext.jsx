@@ -6,7 +6,7 @@ import Toast from 'react-native-toast-message';
 const APIContext = createContext();
 
 const APIProvider = ({ children }) => {
-  const server = 'http://192.168.1.19:3000';
+  const server = 'http://192.168.1.31:5000/api';
   console.log("Server is :", server);
   // Function to fetch user from AsyncStorage
   const getUserFromAsyncStorage = async () => {
@@ -50,20 +50,35 @@ const APIProvider = ({ children }) => {
   }
   // Auth APIs
   const login = async (data) => {
-    const url = `${server}/auth/login`;
-    const response = await axios.post(url, data);
-    if(response.data && response.data.user){
-      const loggedInUser = response.data.user;
-      setUser(loggedInUser);
-      await AsyncStorage.setItem('user', JSON.stringify(loggedInUser));
+    const url = `${server}/user/login`;
+    try {
+      const response = await axios.post(url, data);
+      console.log("Login API Response:", response.data);
+  
+      if (response.data && response.data.data) {
+        const loggedInUser = response.data.data;
+        setUser(loggedInUser);
+        await AsyncStorage.setItem('user', JSON.stringify(loggedInUser));
+        console.log("User saved to AsyncStorage:", loggedInUser); // Debugging log
+      } else {
+        console.warn("User data missing in response");
+      }
+      return response.data;
+    } catch (error) {
+      console.error("Login failed:", error);
+      throw error; // Rethrow to propagate error to UI
     }
-    return response.data;
   };
-  const forgot = async (data) => {
-    const url = `${server}/otp/send`;
+  
+  const sendOTP=async (data) => {
+    console.log("Send OTP for :", data);
+    
+    const url = `${server}/user/sendOtp`;
     const response = await axios.post(url, data);
     return response.data;
   };
+
+  
 
   const changePassword = async (data) => {
     const url = `${server}/user/changePassword`;
@@ -73,217 +88,94 @@ const APIProvider = ({ children }) => {
 
   
 
-  const reset = async (data) => {
-    const url = `${server}/user/resetPassword`;
-    const response = await axios.patch(url, data);
-    return response.data;
-  };
-
-  const DashboardData = async () => {
-    const url = `${server}/user/data`;
-    const response = await axios.get(url, getConfig());
-    return response.data;
-  };
-
-  // Mufti APIs
-  const fetchMuftiNames = async () => {
-    const url = `${server}/mufti/getnames`;
-    const response = await axios.get(url);
-    return response.data.data;
-  };
-
-  const pendingMuftis = async () => {
-    const url = `${server}/mufti/pendings`;
-    const response = await axios.get(url, getConfig());
-    return response.data;
-  };
-
-  const approvedMuftis = async () => {
-    const url = `${server}/mufti/all`;
-    const response = await axios.get(url, getConfig());
-    return response.data;
-  };
-
-  // Nikkah APIs
-  const fetchNikkahs = async (data) => {
-    const url = `${server}/nikkah/person`;
+  const verifyOTP = async (data,endpoint) => {
+    const url = `${server}/user/${endpoint}`;
     const response = await axios.post(url, data);
-    return response.data.data;
+    return response.data;
   };
 
-  const addNikkah = async (data) => {
-    const url = `${server}/nikkah/add`;
+
+
+  // Brand
+  const createBrand = async (data) => {
+    const url = `${server}/brand/addBrand`;
     const response = await axios.post(url, data, getConfig());
-    return response.data.data;
-  };
-
-  const nikkah_person = async () => {
-    const url = `${server}/nikkah/nikkah_person`;
-    const response = await axios.get(url, getConfig());
     return response.data;
-  };
-
-  // Registrar APIs
-  const addRegistrar = async (data) => {
-    const url = `${server}/registrar/add`;
-    const response = await axios.post(url, data);
+  }
+  const allBrands=async()=>{
+    const url = `${server}/brand/getBrands`;
+    const response = await axios.get(url,getConfig());
     return response.data;
-  };
-  const muftiRegister = async (data) => {
-    const url = `${server}/mufti/add`;
-    const response = await axios.post(url, data);
-    return response.data;
-  };
+  }
 
-  const pendingRegistrars = async () => {
-    const url = `${server}/registrar/pending_registrars/`;
-    const response = await axios.get(url, getConfig());
+  //Categories
+  const createCategory = async (data) => {
+    const url = `${server}/category/addCategory`;
+    const response = await axios.post(url, data, getConfig());
     return response.data;
-  };
+  }
+  const allCategories=async()=>{
+    const url = `${server}/category/getCategories`;
+    const response = await axios.get(url,getConfig());
+    return response.data;
+  }
 
-  const changeStatus = async (id, status, action) => {
-    const term = action === 'mufti' ? 'mufti' : 'registrar';
-    const url = `${server}/${term}/change_status/${id}/${status}`;
+  //Products
+  const allProducts=async()=>{
+    const url = `${server}/product/getProducts`;
+    const response = await axios.get(url,getConfig());
+    return response.data;
+  }
+  const createProduct= async (data) => {
+    const url = `${server}/product/addProduct`;
+    const response = await axios.post(url, data, getConfig());
+    return response.data;
+  }
+
+  //BILLS
+  const posBills=async()=>{
+    const url = `${server}/company/getPosBills`;
+    const response = await axios.get(url,getConfig());
+    return response.data;
+  }
+  const paidBill=async(id)=>{
+    const url = `${server}/company/updatePosBill?id=${id}`;
+    console.log("Paying :", url);
     
-    const response = await axios.put(url, {}, getConfig());
+    const response = await axios.put(url,getConfig());
     return response.data;
-  };
-  const changeMaritalStatus = async (data) => {
-    try {
-        console.log("Data in context:", data);
-        const url = `${server}/nikkah/update_status`;
-        const response = await axios.post(url, data, getConfig());
-        return response.data;
-    } catch (error) {
-        console.error("Error in API call:", error);
-        throw error; // Or handle as needed
-    }
-};
-
-
-  const CheckMaritalStatus=async()=>{
-    const url = `${server}/nikkah/marriage_status`;
-    const response=await axios.get(url, getConfig());
-    return response.data
-}
-
-  const adminAllRegistrars = async () => {
-    const url = `${server}/registrar/all`;
-    const response = await axios.get(url, getConfig());
+  }
+  const printBill=async(id)=>{
+    const url = `${server}/billing/getBilling?billId=${id}`;
+    const response = await axios.get(url,getConfig());
     return response.data;
-  };
+  }
 
-  const approvedRegistrar = async () => {
-    const url = `${server}/registrar/mufti_registrar`;
-    const response = await axios.get(url, getConfig());
-    return response.data;
-  };
 
-  // Bride APIs
-  const addBride = async (data) => {
-    const url = `${server}/bride/add`;
-    const response = await axios.post(url, data);
-    return response.data;
-  };
 
-  const oneBride = async (id) => {
-    const url = `${server}/bride/oneBride/${id}`;
-    const response = await axios.get(url, getConfig());
-    return response.data;
-  };
-
-  const fetchBrideNames = async () => {
-    const url = `${server}/bride/names`;
-    const response = await axios.get(url);
-    return response.data.data;
-  };
-
-  // Groom APIs
-  const addGroom = async (data) => {
-    const url = `${server}/groom/add`;
-    const response = await axios.post(url, data);
-    return response.data;
-  };
-
-  const oneGroom = async (id) => {
-    const url = `${server}/groom/oneGroom/${id}`;
-    const response = await axios.get(url, getConfig());
-    return response.data;
-  };
-
-  const fetchGroomNames = async () => {
-    const url = `${server}/groom/names`;
-    const response = await axios.get(url);
-    return response.data.data;
-  };
-
-  // Solicitor APIs
-  const fetchSolicitorNames = async () => {
-    const url = `${server}/solicitor/names`;
-    const response = await axios.get(url);
-    return response.data.data;
-  };
-
-  const addSolicitor = async (data) => {
-    const url = `${server}/solicitor/add`;
-    const response = await axios.post(url, data);
-    return response.data.data;
-  };
-
-  // Witness APIs
-  const fetchWitnessNames = async () => {
-    const url = `${server}/witness/names`;
-    const response = await axios.get(url);
-    return response.data.data;
-  };
-
-  const addWitness = async (data) => {
-    const url = `${server}/witness/add`;
-    const response = await axios.post(url, data);
-    return response.data.data;
-  };
-  
   const showToast = (type,message) => {
     Toast.show({
-      type: type,
-      
+      type: type, 
       text2: message,
     });
   };
-
   const provider = {
-    login,
-    getUser,
-    Logout,
-    changePassword,
-    forgot,
-    reset,
-    muftiRegister,
-    DashboardData,
-    fetchMuftiNames,
-    pendingMuftis,
-    approvedMuftis,
-    fetchNikkahs,
-    addNikkah,
-    nikkah_person,
-    addRegistrar,
-    pendingRegistrars,
-    changeStatus,
-    adminAllRegistrars,
-    approvedRegistrar,
-    addBride,
-    changeMaritalStatus,
-    oneBride,
-    fetchBrideNames,
-    addGroom,
-    oneGroom,
-    fetchGroomNames,
-    fetchSolicitorNames,
-    addSolicitor,
-    fetchWitnessNames,
-    addWitness,
+    //Auth
+    login,getUser,Logout,changePassword,verifyOTP,sendOTP,
+    
+    //Brand
+    createBrand,allBrands,
+    //Brand
+    createCategory,allCategories,
+
+    //Products
+    allProducts,createProduct,
+
+    //Bills
+    posBills,paidBill,printBill,
+    
+    server,
     showToast,
-    CheckMaritalStatus
   };
 
   return <APIContext.Provider value={provider}>{children}</APIContext.Provider>;

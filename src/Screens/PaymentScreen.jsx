@@ -2,70 +2,120 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Image,
+  ScrollView,
+  TextInput,
   Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView } from "react-native-gesture-handler";
-import { useStripe, CardField, useConfirmPayment } from "@stripe/stripe-react-native";
+import { CardField, useStripe } from "@stripe/stripe-react-native";
 import { useAPI } from "../Context/APIContext";
+import { useRoute } from "@react-navigation/native";
+import Spinner from "react-native-loading-spinner-overlay"; // Import the spinner
 
 const PaymentScreen = () => {
   const { confirmPayment } = useStripe();
   const [cardDetails, setCardDetails] = useState(null);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const { server } = useAPI();
-
+  const route = useRoute(); 
+  const { state: billData } = route.params; 
+  console.log("Bill Data is:", billData);
+  const { getUser } = useAPI();
+  const user = getUser()?._j;
+  console.log("Saved User is :", user);
+  
   const handlePayment = async () => {
-   
+    if (!name || !email) {
+      setPaymentStatus("Please enter both name and email.");
+      return;
+    }
+  
     setIsPaymentProcessing(true);
-
+    setPaymentStatus(null);
+  
     try {
-      // Request to create a Payment Intent on the server
-      const response = await fetch(`${server}/create-payment-intent`, {
+      const response = await fetch(`${server}/company/onlinePayment?id=${billData?.billId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: 5000 }), // Example: 5000 cents = $50
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user?.token}`, // Add the Bearer token
+        },
+        body: JSON.stringify({ amount: billData?.totalBilling * 100 }),
       });
+  
+      if (!response.ok) {
+        throw new Error("Failed to create payment intent");
+      }
+  
+      const { data } = await response.json();
+      const clientSecret = data.clientSecret;
+  
+      if (clientSecret) {
+        const { error, paymentIntent } = await confirmPayment(clientSecret, {
+          paymentMethodType: "Card", // Specify payment method type
+          paymentMethodData: {
+            billingDetails: {
+              name,
+              email,
+            },
+          },
+        });
+  
+        if (error) {
+          setPaymentStatus(`Payment failed: ${error.message}`);
+          console.error("Payment Error:", error);
+        } else if (paymentIntent) {
+          setPaymentStatus("Payment Successful!");
+          Alert.alert('Success', 'You Payment is successfully Proceed.');
 
-      const { clientSecret } = await response.json();
-
-      // Confirm the payment with Stripe
-      const { error, paymentIntent } = await confirmPayment(clientSecret, {
-        type: "Card",
-        billingDetails: { name: "John Doe" },
-      });
-
-      if (error) {
-        setPaymentStatus(`Payment failed: ${error.message}`);
-        console.error(error);
-      } else if (paymentIntent) {
-        setPaymentStatus("Payment Successful!");
-        console.log("Payment Successful!", paymentIntent);
+          console.log("Payment Successful!", paymentIntent);
+        }
+      } else {
+        throw new Error("No client secret received");
       }
     } catch (error) {
-      setPaymentStatus("Payment failed. Please try again.");
-      console.error("Payment failed", error);
+      setPaymentStatus(`Payment failed. Please try again. Error: ${error.message}`);
+      console.error("Payment error:", error);
     } finally {
       setIsPaymentProcessing(false);
     }
   };
+  
 
   return (
     <LinearGradient colors={["#4e92cc", "#006d77"]} style={styles.container}>
       <ScrollView contentContainerStyle={styles.card} showsVerticalScrollIndicator={false}>
         <View>
+          {/* Adding the Mastercard logo */}
           <Image
-            // source={require("../assets/images/Payment/credit-card.png")}
+            source={require("../assets/images/Payment/master.png")} // Use the correct path to your image
             style={styles.logo}
           />
           <Text style={styles.title}>Secure Payment</Text>
           <Text style={styles.subtitle}>Enter your card details below</Text>
+
+          {/* Name Input */}
+          <TextInput
+            style={styles.input}
+            placeholder="Your Name"
+            value={name}
+            onChangeText={setName}
+          />
+
+          {/* Email Input */}
+          <TextInput
+            style={styles.input}
+            placeholder="Your Email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+          />
 
           {/* Stripe Card Input Field */}
           <CardField
@@ -90,13 +140,21 @@ const PaymentScreen = () => {
           </TouchableOpacity>
 
           {/* Payment Status */}
-          {paymentStatus && (
+          {/* {paymentStatus && (
             <Text style={styles.paymentStatus}>
               {paymentStatus}
             </Text>
-          )}
+          )} */}
         </View>
       </ScrollView>
+
+      {/* Spinner overlay when processing payment */}
+      <Spinner
+        visible={isPaymentProcessing}
+        textContent={"Processing payment..."}
+        textStyle={styles.spinnerText}
+        overlayColor="rgba(0, 0, 0, 0.5)" // Optional background overlay
+      />
     </LinearGradient>
   );
 };
@@ -122,9 +180,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   logo: {
-    width: 100,
-    height: 100,
+    width: '100%',
+    height: 220,  // Adjust height to fit the image well
     marginBottom: 20,
+    border: '1px solid white',
+    borderRadius: 10,
     alignSelf: "center",
   },
   title: {
@@ -140,6 +200,15 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
     letterSpacing: 0.5,
+  },
+  input: {
+    width: "100%",
+    padding: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderRadius: 5,
+    borderColor: "#ccc",
+    fontSize: 16,
   },
   cardInputContainer: {
     width: "100%",
@@ -182,6 +251,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#555",
     marginTop: 20,
+  },
+  spinnerText: {
+    color: "#fff", // White color for the spinner text
+    fontSize: 18,
   },
 });
 

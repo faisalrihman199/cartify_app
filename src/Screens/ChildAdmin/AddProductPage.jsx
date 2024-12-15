@@ -9,196 +9,276 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useAPI } from '../../Context/APIContext';
+import { useForm, Controller } from 'react-hook-form';
+import Icon from 'react-native-vector-icons/FontAwesome';
+import Scanning from '../../Components/Scanning/Scanning';
+import { useRoute } from '@react-navigation/native';
 
 const AddProductPage = () => {
-  const [productCode, setProductCode] = useState('');
-  const [productName, setProductName] = useState('');
-  const [category, setCategory] = useState('');
-  const [brand, setBrand] = useState('');
-  const [price, setPrice] = useState('');
-  const [weight, setWeight] = useState('');
-  const [description, setDescription] = useState('');
-  const [stock, setStock] = useState('');
-  const [barcode, setBarcode] = useState('');
-  const { createProduct, allCategories, allBrands } = useAPI();
+  const route = useRoute();
+  const { product } = route.params || {};
+  console.log("Product :", product);
+
+  const { addProduct, allCategories, allBrands } = useAPI();
   const [Categories, setAllCategories] = useState([]);
   const [Brands, setAllBrands] = useState([]);
+  const [barcode, setBarcode] = useState(product?.productCode || null);
+  const [scanning, setScanning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch categories and brands when the component mounts
+  // React Hook Form
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm();
+
+  // Populate form fields if a product is passed
   useEffect(() => {
-    // Fetch categories
-    allCategories()
-      .then(response => {
-        setAllCategories(response.data.categories); // Assuming the response structure has categories
-      })
-      .catch(error => {
-        console.error('Error fetching categories:', error);
-        Alert.alert('Error', 'Failed to fetch categories.');
-      });
+      setBarcode(product?.productCode);
+      setValue('productName', product?.productName || '');
+      setValue('categoryId', product?.categoryId || '');
+      setValue('brandId', product?.brandId || '');
+      setValue('productPrice', product?.productPrice?.toString() || '');
+      setValue('stock', product?.stock?.toString() || '');
+      setValue('weight', product?.weight?.toString() || '');
+      setValue('description', product?.description || '');
+    
+    
+  }, [product, setValue]);
 
-    // Fetch brands
+  // Fetch categories and brands on mount
+  useEffect(() => {
+    allCategories()
+      .then(response => setAllCategories(response.data.categories || []))
+      .catch(() => Alert.alert('Error', 'Failed to fetch categories.'));
+
     allBrands()
-      .then(response => {
-        setAllBrands(response.data.brands); // Assuming the response structure has brands
-      })
-      .catch(error => {
-        console.error('Error fetching brands:', error);
-        Alert.alert('Error', 'Failed to fetch brands.');
-      });
+      .then(response => setAllBrands(response.data.brands || []))
+      .catch(() => Alert.alert('Error', 'Failed to fetch brands.'));
   }, []);
 
-  const handleSubmit = () => {
-    if (!productName || !category || !price || !stock) {
-      Alert.alert('Error', 'Please fill out all required fields.');
+  // Handle pull-to-refresh
+  const onRefresh = () => {
+    setRefreshing(true);
+    // Simulate an API call or re-fetch data
+    allCategories()
+      .then(response => setAllCategories(response.data.categories || []))
+      .catch(() => Alert.alert('Error', 'Failed to fetch categories.'));
+    
+    allBrands()
+      .then(response => setAllBrands(response.data.brands || []))
+      .catch(() => Alert.alert('Error', 'Failed to fetch brands.'));
+    
+    // End refresh after data is fetched
+    setRefreshing(false);
+  };
+
+  // Handle form submission
+  const onSubmit = data => {
+    if (!barcode) {
+      Alert.alert('Error', 'Barcode cannot be empty');
       return;
     }
+    data.productCode = barcode;
 
-    const productData = {
-      productCode,
-      productName,
-      categoryId:category,
-      brandId:brand,
-      productPrice:price,
-      weight,
-      description,
-      stock,
-      barcode,
-    };
-    console.log("Data is :",productData);
-    
-    createProduct(productData)
-      .then(() => {
-        Alert.alert('Success', 'Product added successfully!');
-        setProductCode('');
-        setProductName('');
-        setCategory('');
-        setBrand('');
-        setPrice('');
-        setWeight('');
-        setDescription('');
-        setStock('');
-        setBarcode('');
+    addProduct(data, product?.id)
+      .then(response => {
+        if (response.success) {
+          Alert.alert('Success', response.message);
+          reset();
+          setBarcode(null);
+        } else {
+          Alert.alert('Error', 'Failed to add product.');
+        }
       })
-      .catch((error) => {
+      .catch(error => {
         console.error('Error creating product:', error);
-        Alert.alert('Error', 'Failed to create product.');
+        Alert.alert('Error', error.response?.data?.message || 'Failed to create product.');
       });
   };
 
-  return (
+  return scanning ? (
+    <Scanning setScanning={setScanning} setBarcode={setBarcode} />
+  ) : (
     <View style={styles.container}>
-      <Text style={styles.header}>Add New Product</Text>
+      <Text style={styles.header}>{product ? 'Update Product' : 'Add New Product'}</Text>
 
-      {/* Keyboard Avoiding View */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {/* Scrollable Form */}
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}>
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }>
+          
           {/* Product Code */}
-          <TextInput
-            style={styles.input}
-            placeholder="Product Code"
-            value={productCode}
-            onChangeText={setProductCode}
-          />
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={[styles.input, barcode ? {} : styles.errorBorder]}
+              placeholder="Product Code"
+              value={barcode}
+              editable={false}
+            />
+            {!product && (
+              <TouchableOpacity
+                style={styles.iconContainer}
+                onPress={() => setScanning(true)}>
+                <Icon name="barcode" size={24} color="#333" />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Product Name */}
-          <TextInput
-            style={styles.input}
-            placeholder="Product Name *"
-            value={productName}
-            onChangeText={setProductName}
+          <Text style={styles.label}>Product Name</Text>
+          <Controller
+            control={control}
+            name="productName"
+            rules={{ required: 'Product Name is required' }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Product Name *"
+                value={value}
+                onChangeText={onChange}
+              />
+            )}
           />
+          {errors.productName && (
+            <Text style={styles.errorText}>{errors.productName.message}</Text>
+          )}
 
           {/* Category */}
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={category}
-              onValueChange={(value) => setCategory(value)}
-              style={styles.picker}>
-              <Picker.Item label="Select Category" value="" />
-              {Categories && Categories.map((category) => (
-                <Picker.Item
-                  key={category.id}
-                  label={category.name}
-                  value={category.id}
-                />
-              ))}
-            </Picker>
-          </View>
+          <Text style={styles.label}>Category</Text>
+          <Controller
+            control={control}
+            name="categoryId"
+            rules={{ required: 'Category is required' }}
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={value}
+                  onValueChange={onChange}
+                  style={styles.picker}>
+                  <Picker.Item label="Select Category" value="" />
+                  {Categories.map(category => (
+                    <Picker.Item
+                      key={category.id}
+                      label={category.name}
+                      value={category.id}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            )}
+          />
+          {errors.categoryId && (
+            <Text style={styles.errorText}>{errors.categoryId.message}</Text>
+          )}
 
           {/* Brand */}
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={brand}
-              onValueChange={(value) => setBrand(value)}
-              style={styles.picker}>
-              <Picker.Item label="Select Brand" value="" />
-              {Brands && Brands.map((brand) => (
-                <Picker.Item
-                  key={brand.id}
-                  label={brand.name}
-                  value={brand.id}
-                />
-              ))}
-            </Picker>
-          </View>
-
-          {/* Price */}
-          <TextInput
-            style={styles.input}
-            placeholder="Price *"
-            keyboardType="numeric"
-            value={price}
-            onChangeText={setPrice}
+          <Text style={styles.label}>Brand</Text>
+          <Controller
+            control={control}
+            name="brandId"
+            render={({ field: { onChange, value } }) => (
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={value}
+                  onValueChange={onChange}
+                  style={styles.picker}>
+                  <Picker.Item label="Select Brand" value="" />
+                  {Brands.map(brand => (
+                    <Picker.Item key={brand.id} label={brand.name} value={brand.id} />
+                  ))}
+                </Picker>
+              </View>
+            )}
           />
 
+          {/* Price */}
+          <Text style={styles.label}>Price</Text>
+          <Controller
+            control={control}
+            name="productPrice"
+            rules={{ required: 'Price is required' }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Price *"
+                keyboardType="numeric"
+                value={value}
+                onChangeText={onChange}
+              />
+            )}
+          />
+          {errors.productPrice && (
+            <Text style={styles.errorText}>{errors.productPrice.message}</Text>
+          )}
+
+          {/* Stock */}
+          <Text style={styles.label}>Stock</Text>
+          <Controller
+            control={control}
+            name="stock"
+            rules={{ required: 'Stock is required' }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Stock *"
+                keyboardType="numeric"
+                value={value}
+                onChangeText={onChange}
+              />
+            )}
+          />
+          {errors.stock && <Text style={styles.errorText}>{errors.stock.message}</Text>}
+
           {/* Weight */}
-          <TextInput
-            style={styles.input}
-            placeholder="Weight"
-            keyboardType="numeric"
-            value={weight}
-            onChangeText={setWeight}
+          <Text style={styles.label}>Weight</Text>
+          <Controller
+            control={control}
+            name="weight"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Weight"
+                keyboardType="numeric"
+                value={value}
+                onChangeText={onChange}
+              />
+            )}
           />
 
           {/* Description */}
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Description"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-          />
-
-          {/* Stock */}
-          <TextInput
-            style={styles.input}
-            placeholder="Stock *"
-            keyboardType="numeric"
-            value={stock}
-            onChangeText={setStock}
-          />
-
-          {/* Barcode */}
-          <TextInput
-            style={styles.input}
-            placeholder="Scan Product Barcode"
-            value={barcode}
-            onChangeText={setBarcode}
+          <Text style={styles.label}>Description</Text>
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                style={styles.textArea}
+                placeholder="Description"
+                multiline
+                numberOfLines={7}
+                value={value}
+                onChangeText={onChange}
+              />
+            )}
           />
         </ScrollView>
 
-        {/* Submit Button */}
         <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitButtonText}>Add Product</Text>
+          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit(onSubmit)}>
+            <Text style={styles.submitButtonText}>{product ? 'Update' : 'Add'} Product</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -224,50 +304,65 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Prevents overlap with the button
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    flex: 1,
     padding: 10,
     marginBottom: 15,
     fontSize: 16,
     backgroundColor: '#fff',
+    height: 50, // Ensure consistent height across input fields
+    textAlignVertical: 'center', // Align text vertically in the center
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 5,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 12,
+    marginBottom: 10,
   },
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
+    borderColor: '#ddd',
     marginBottom: 15,
     backgroundColor: '#fff',
   },
   picker: {
     height: 50,
-    fontSize: 16,
-    color: '#333',
+    paddingLeft: 10,
   },
   textArea: {
-    height: 100,
+    backgroundColor: '#fff',
+    marginBottom: 15,
+    padding: 10,
+    fontSize: 16,
     textAlignVertical: 'top',
+    height: 100,
+  },
+  iconContainer: {
+    position: 'absolute',
+    right: 10,
   },
   buttonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 15,
-    backgroundColor: '#f5f5f5',
-    borderTopWidth: 1,
-    borderColor: '#ccc',
+    alignItems: 'center',
+    marginTop: 20,
   },
   submitButton: {
     backgroundColor: '#4e92cc',
-    paddingVertical: 15,
-    borderRadius: 8,
-    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 5,
+    margin:5
   },
   submitButtonText: {
-    fontSize: 18,
     color: '#fff',
-    fontWeight: 'bold',
+    fontSize: 18,
   },
 });
 

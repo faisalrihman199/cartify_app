@@ -29,7 +29,7 @@ const AdminDashboard = ({ navigation }) => {
           <Text style={styles.gridLabel}>POS Bills</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('AllBills')}>
+        <TouchableOpacity style={styles.gridItem} onPress={() => navigation.navigate('BillHistory')}>
           <View style={styles.iconContainer}>
             <MaterialCommunityIcons name="file-document" size={50} color="#fff" />
           </View>

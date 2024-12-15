@@ -11,7 +11,7 @@ module.exports = function(api) {
           path: '.env',
           allowlist: ['REACT_NATIVE_API_URL'], // Add your environment variables here
         },
-      ],
+      ]
     ],
   };
 };

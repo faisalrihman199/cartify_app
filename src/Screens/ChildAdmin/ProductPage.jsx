@@ -1,38 +1,44 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  RefreshControl,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons'; // Import MaterialIcons
 import { useAPI } from '../../Context/APIContext';
 
 const ProductPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const { allProducts } = useAPI(''); // Make sure `useAPI` is fetching products from your API context
+  const { allProducts, deleteProduct } = useAPI(''); // Assuming `deleteProduct` is available
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch products when the component mounts
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        // Call your API to get products data
-        const response = await allProducts();  // Assuming `allProducts` fetches the data
-        if (response.success) {
-          console.log("Response :", response);
-
-          setProducts(response.data.products);
-          setFilteredProducts(response.data.products);  // Initially show all products
-        } else {
-          Alert.alert('Error', 'Failed to fetch products');
-        }
-      } catch (error) {
-        console.error(error);
+  const fetchProducts = async () => {
+    try {
+      const response = await allProducts();
+      if (response.success) {
+        setProducts(response.data.products);
+        setFilteredProducts(response.data.products);
+      } else {
         Alert.alert('Error', 'Failed to fetch products');
       }
-    };
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to fetch products');
+    }
+  };
 
+  useEffect(() => {
     fetchProducts();
-  }, []); // Empty dependency array to run only once on mount
+  }, []);
 
-  // Filter products based on search query
   const handleSearch = (query) => {
     setSearchQuery(query);
     const filtered = products.filter((product) =>
@@ -41,10 +47,38 @@ const ProductPage = () => {
     setFilteredProducts(filtered);
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchProducts();
+    setRefreshing(false);
+  };
+
+  const handleEditProduct = (product) => {
+    // Navigate to edit product screen, passing the product details
+    navigation.navigate('AddProduct', { product });
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    try {
+      const response = await deleteProduct(productId); 
+      
+      if (response.success) {
+        Alert.alert('Success', 'Product deleted successfully');
+        fetchProducts();
+
+      } else {
+        Alert.alert('Error', 'Failed to delete product');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to delete product');
+    }
+  };
+
   const navigation = useNavigation();
 
   const handleAddProduct = () => {
-    navigation.navigate("AddProduct");
+    navigation.navigate('AddProduct');
   };
 
   return (
@@ -60,19 +94,39 @@ const ProductPage = () => {
       </View>
 
       {/* Product Table */}
-      <ScrollView style={styles.tableContainer}>
+      <ScrollView
+        style={styles.tableContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.tableHeader}>
           <Text style={styles.tableHeaderCell}>Product Name</Text>
           <Text style={styles.tableHeaderCell}>Price</Text>
           <Text style={styles.tableHeaderCell}>Category</Text>
           <Text style={styles.tableHeaderCell}>Stock</Text>
+          <Text style={styles.tableHeaderCell}>Actions</Text>
         </View>
         {filteredProducts.map((product, index) => (
           <View key={index} style={styles.tableRow}>
             <Text style={styles.tableCell}>{product.productName}</Text>
             <Text style={styles.tableCell}>${product.productPrice}</Text>
-            <Text style={styles.tableCell}>{product.categoryId}</Text> {/* You may want to replace with category name */}
+            <Text style={styles.tableCell}>{product?.category?.name}</Text>
             <Text style={styles.tableCell}>{product.stock}</Text>
+            <View style={styles.actionIcons}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => handleEditProduct(product)}
+              >
+                <Icon name="edit" size={24} color="#4e92cc" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => handleDeleteProduct(product.id)}
+              >
+                <Icon name="delete" size={24} color="#cc4e4e" />
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
       </ScrollView>
@@ -80,9 +134,8 @@ const ProductPage = () => {
       {/* Add Product Button */}
       <View style={styles.addButtonContainer}>
         <TouchableOpacity style={styles.addButton} onPress={handleAddProduct}>
-          <Text style={styles.addButtonText}>Add New Product</Text> {/* Ensure text is inside <Text> */}
+          <Text style={styles.addButtonText}>Add New Product</Text>
         </TouchableOpacity>
-
       </View>
     </View>
   );
@@ -134,6 +187,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     textAlign: 'center',
+  },
+  actionIcons: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconButton: {
+    padding: 5,
   },
   addButtonContainer: {
     marginTop: 15,

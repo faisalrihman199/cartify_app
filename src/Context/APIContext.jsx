@@ -6,7 +6,7 @@ import Toast from 'react-native-toast-message';
 const APIContext = createContext();
 
 const APIProvider = ({ children }) => {
-  const server = 'http://192.168.1.31:5000/api';
+  const server = 'http://192.168.1.21:5000/api';
   console.log("Server is :", server);
   // Function to fetch user from AsyncStorage
   const getUserFromAsyncStorage = async () => {
@@ -121,16 +121,27 @@ const APIProvider = ({ children }) => {
   }
 
   //Products
+  const addProduct = async (data,id) => {
+    const url = `${server}/product/addProduct${id?`?productId=${id}`:''}`;
+    const response = await axios.post(url, data, getConfig());
+    return response.data;
+  }
   const allProducts=async()=>{
     const url = `${server}/product/getProducts`;
     const response = await axios.get(url,getConfig());
     return response.data;
   }
-  const createProduct= async (data) => {
-    const url = `${server}/product/addProduct`;
-    const response = await axios.post(url, data, getConfig());
+  const oneProduct=async(code)=>{
+    const url = `${server}/product/getProduct/${code}`;
+    const response = await axios.get(url,getConfig());
     return response.data;
   }
+  const deleteProduct=async(id)=>{
+    const url = `${server}/product/deleteProduct/${id}`;
+    const response = await axios.delete(url,getConfig());
+    return response.data;
+  }
+  
 
   //BILLS
   const posBills=async()=>{
@@ -140,17 +151,50 @@ const APIProvider = ({ children }) => {
   }
   const paidBill=async(id)=>{
     const url = `${server}/company/updatePosBill?id=${id}`;
-    console.log("Paying :", url);
-    
-    const response = await axios.put(url,getConfig());
+    const response = await axios.post(url,{},getConfig());
     return response.data;
   }
   const printBill=async(id)=>{
     const url = `${server}/billing/getBilling?billId=${id}`;
+    
     const response = await axios.get(url,getConfig());
     return response.data;
   }
+  const proceedBill=async (data) => {
+    console.log("Log Data :", data);
+    
+    const url = `${server}/billing/createBilling`;
+    const response = await axios.post(url, data, getConfig());
+    return response.data;
+  }
+  const billHostory = async (startRange, endRange, billId) => {
+    // Build the query parameters conditionally
+    let query = '';
+    
+    if (startRange) query += `startRange=${startRange}&`;
+    if (endRange) query += `endRange=${endRange}&`;
+    if (billId) query += `billId=${billId}&`;
+    
+    query = query.endsWith('&') ? query.slice(0, -1) : query;
+  
+    const url = `${server}/customer/paymentHistory${query ? `?${query}` : ''}`;
+    
+    try {
+      const response = await axios.get(url, getConfig());
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+      throw error;
+    }
+  };
+  
 
+
+  const sendPOS=async(id)=>{
+    const url = `${server}/billing/createPosBills?billId=${id}`;
+    const response = await axios.post(url,{},getConfig());
+    return response.data;
+  }
 
 
   const showToast = (type,message) => {
@@ -169,10 +213,10 @@ const APIProvider = ({ children }) => {
     createCategory,allCategories,
 
     //Products
-    allProducts,createProduct,
+    allProducts,addProduct,oneProduct,deleteProduct,
 
     //Bills
-    posBills,paidBill,printBill,
+    posBills,paidBill,printBill,proceedBill,sendPOS,billHostory,
     
     server,
     showToast,

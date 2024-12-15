@@ -1,38 +1,46 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Platform, RefreshControl } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons,FontAwesome } from '@expo/vector-icons';
+import { Ionicons, FontAwesome } from '@expo/vector-icons';
+import { useAPI } from '../Context/APIContext';
 
 const BillHistoryPage = () => {
   // Sample bills data
-  const [bills, setBills] = useState([
-    { billID: 'BILL123456', date: '2024-12-9', totalAmount: 50.00 },
-    { billID: 'BILL123457', date: '2024-12-02', totalAmount: 75.00 },
-    { billID: 'BILL123458', date: '2024-12-03', totalAmount: 100.00 },
-  ]);
-
+  const [bills, setBills] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);  // for swipe refresh control
+  const { billHostory } = useAPI();
+
+  // Fetch bills when the page mounts
+  const fetchBills = () => {
+    billHostory(startDate, endDate, searchText)
+      .then((res) => {
+        console.log("Bills fetched:", res);
+        // Extract posBills from response and update state
+        setBills(res.data.posBills);  // Assuming the response structure contains 'data.posBills'
+      })
+      .catch((err) => {
+        console.log("Error fetching bills:", err);
+      });
+  };
+
+  useEffect(() => {
+    fetchBills();
+  }, []); // Empty array means this runs once when the component mounts
 
   // Filter bills based on Bill ID and Date Range
-  const filteredBills = bills.filter(bill => {
-    const billDate = new Date(bill.date);
+  const filteredBills = bills.filter((bill) => {
+    const billDate = new Date(bill.createdAt);
     return (
-      bill.billID.toLowerCase().includes(searchText.toLowerCase()) &&
-      billDate >= startDate && billDate <= endDate
+      bill.billId.toLowerCase().includes(searchText.toLowerCase()) &&
+      (startDate ? billDate >= startDate : true) &&
+      (endDate ? billDate <= endDate : true)
     );
   });
-
-  const handleViewBill = (billID) => {
-    console.log(`Viewing details for Bill ID: ${billID}`);
-  };
-
-  const handleDownloadBill = (billID) => {
-    console.log(`Downloading Bill ID: ${billID}`);
-  };
 
   // Handling Date Picker Change
   const onStartDateChange = (event, selectedDate) => {
@@ -47,33 +55,55 @@ const BillHistoryPage = () => {
     setEndDate(currentDate);
   };
 
+  // Handle the search button press
+  const handleSearch = () => {
+    fetchBills();
+  };
+
+  // Handle swipe to refresh
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchBills();  // Fetch bills again on refresh
+    setIsRefreshing(false);
+  };
+
+  // Format the date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(); // Formats the date as MM/DD/YYYY
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Bill History</Text>
 
-      {/* Search Bar */}
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by Bill ID"
-        value={searchText}
-        onChangeText={setSearchText}
-      />
+      {/* Search Bar with Icon */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by Bill ID"
+          value={searchText}
+          onChangeText={setSearchText}
+        />
+        <TouchableOpacity style={styles.searchIcon} onPress={handleSearch}>
+          <Ionicons name="search" size={24} color="#fff" />
+        </TouchableOpacity>
+      </View>
 
       {/* Date Range Pickers */}
       <View style={styles.datePickers}>
         <TouchableOpacity onPress={() => setShowStartDatePicker(true)} style={styles.dateButton}>
-          <Text style={styles.dateButtonText}>
-            {startDate.toLocaleDateString()}</Text>
+          <Text style={styles.dateButtonText}>{startDate ? startDate.toLocaleDateString() : 'Start Date'}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setShowEndDatePicker(true)} style={styles.dateButton}>
-          <Text style={styles.dateButtonText}>{endDate.toLocaleDateString()}</Text>
+          <Text style={styles.dateButtonText}>{endDate ? endDate.toLocaleDateString() : 'End Date'}</Text>
         </TouchableOpacity>
       </View>
 
       {/* DateTime Picker Modals */}
       {showStartDatePicker && (
         <DateTimePicker
-          value={startDate}
+          value={startDate || new Date()}
           mode="date"
           display="default"
           onChange={onStartDateChange}
@@ -82,7 +112,7 @@ const BillHistoryPage = () => {
 
       {showEndDatePicker && (
         <DateTimePicker
-          value={endDate}
+          value={endDate || new Date()}
           mode="date"
           display="default"
           onChange={onEndDateChange}
@@ -90,17 +120,21 @@ const BillHistoryPage = () => {
       )}
 
       {/* Scrollable list of bills */}
-      <ScrollView style={styles.billList}>
-        {filteredBills.map((bill, index) => (
-          <View key={index} style={styles.billCard}>
-            <Text style={styles.billID}>Bill ID: {bill.billID}</Text>
-            <Text style={styles.billDate}>Date: {bill.date}</Text>
-            <Text style={styles.billAmount}>Total Amount: ${bill.totalAmount.toFixed(2)}</Text>
+      <ScrollView
+        style={styles.billList}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+        }
+      >
+        {filteredBills.map((bill) => (
+          <View key={bill.id} style={styles.billCard}>
+            <Text style={styles.billID}>Bill ID: {bill.billId}</Text>
+            <Text style={styles.billStatus}>Status: {bill.status}</Text>
+            <Text style={styles.billDate}>Date: {formatDate(bill.createdAt)}</Text>
 
             <View style={styles.buttonsContainer}>
-              
-              <TouchableOpacity style={styles.downloadButton} onPress={() => handleDownloadBill(bill.billID)}>
-              <FontAwesome name="arrow-circle-down" size={20} color="#fff" />
+              <TouchableOpacity style={styles.downloadButton} onPress={() => handleDownloadBill(bill.billId)}>
+                <FontAwesome name="arrow-circle-down" size={20} color="#fff" />
                 <Text style={styles.buttonText}>Download Bill</Text>
               </TouchableOpacity>
             </View>
@@ -123,13 +157,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   searchInput: {
     height: 40,
     borderColor: '#ddd',
     borderWidth: 1,
     borderRadius: 5,
     paddingLeft: 10,
-    marginBottom: 20,
+    flex: 1,
+  },
+  searchIcon: {
+    backgroundColor: '#4e92cc',
+    padding: 10,
+    borderRadius: 5,
+    marginLeft: 10,
   },
   datePickers: {
     flexDirection: 'row',
@@ -168,20 +213,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 5,
   },
-  billDate: {
+  billStatus: {
     fontSize: 14,
     marginBottom: 5,
   },
-  billAmount: {
-    fontSize: 16,
+  billDate: {
+    fontSize: 14,
     marginBottom: 10,
-    fontWeight: '600',
   },
   buttonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  
   downloadButton: {
     backgroundColor: '#4e92cc',
     padding: 10,

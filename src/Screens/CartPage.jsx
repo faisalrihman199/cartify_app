@@ -1,49 +1,143 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Swipeable } from 'react-native-gesture-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
 
 const CartPage = () => {
-  // Example cart data - this would normally be managed by a state or fetched from a backend
-  const [cartItems, setCartItems] = useState([
-    { name: 'Product 1', quantity: 2, price: 10, totalPrice: 20 },
-    { name: 'Product 2', quantity: 1, price: 15, totalPrice: 15 },
-    { name: 'Product 3', quantity: 3, price: 7, totalPrice: 21 },
-  ]);
+  const [cartItems, setCartItems] = useState([]);
+  const [refreshing, setRefreshing] = useState(false); // For managing the refreshing state
+  const navigate=useNavigation();
+  useEffect(() => {
+    onRefresh(); // Call onRefresh immediately when the page mounts
+  }, []);
 
-  // Calculate the total bill
-  const totalBill = cartItems.reduce((acc, item) => acc + item.totalPrice, 0);
+  // Load cart items from AsyncStorage
+  const loadCartItems = async () => {
+    try {
+      const savedCartItems = await AsyncStorage.getItem('cart');
+      if (savedCartItems) {
+        const parsedItems = JSON.parse(savedCartItems);
+        const updatedItems = parsedItems.map(item => ({
+          ...item,
+          price: parseFloat(item.price),
+          totalPrice: item.price * item.quantity,
+        }));
+        setCartItems(updatedItems);
+      }
+    } catch (error) {
+      console.error('Failed to load cart items:', error);
+    }
+  };
+
+  // Save cart items to AsyncStorage whenever they change
+  useEffect(() => {
+    const saveCartItems = async () => {
+      try {
+        await AsyncStorage.setItem('cart', JSON.stringify(cartItems));
+      } catch (error) {
+        console.error('Failed to save cart items:', error);
+      }
+    };
+
+    saveCartItems();
+  }, [cartItems]);
+
+  const handleIncreaseQuantity = (itemId) => {
+    setCartItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              quantity: item.quantity + 1,
+              totalPrice: (item.quantity + 1) * item.price,
+            }
+          : item
+      )
+    );
+  };
+
+  const handleDecreaseQuantity = (itemId) => {
+    setCartItems((prevItems) => {
+      const updatedItems = prevItems.map((item) => {
+        if (item.id === itemId && item.quantity > 1) {
+          return {
+            ...item,
+            quantity: item.quantity - 1,
+            totalPrice: (item.quantity - 1) * item.price,
+          };
+        }
+        return item;
+      });
+      return updatedItems.filter((item) => item.quantity > 0);
+    });
+  };
+
+  const handleRemoveItem = (itemId) => {
+    setCartItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
+  };
 
   const handleProceedToBilling = () => {
-    // Proceed to billing functionality, e.g., navigating to a checkout page
-    console.log('Proceeding to billing...');
+    navigate.navigate('Bill')
   };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadCartItems(); // Re-load cart items when refreshing
+    setRefreshing(false);
+  };
+
+  const totalBill = cartItems.reduce((acc, item) => acc + item.totalPrice, 0);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Your Cart</Text>
 
-      {/* Cart Items Table */}
-      <ScrollView style={styles.cartTableContainer}>
-        <View style={styles.cartTable}>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Product</Text>
-            <Text style={styles.tableHeader}>Quantity</Text>
-            <Text style={styles.tableHeader}>Price</Text>
-            <Text style={styles.tableHeader}>Total</Text>
-          </View>
-          {cartItems.map((item, index) => (
-            <View key={index} style={styles.tableRow}>
-              <Text style={styles.tableCell}>{item.name}</Text>
-              <Text style={styles.tableCell}>{item.quantity}</Text>
-              <Text style={styles.tableCell}>${item.price}</Text>
-              <Text style={styles.tableCell}>${item.totalPrice}</Text>
+      <ScrollView
+        style={styles.cartTableContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {cartItems.map((item) => (
+          <Swipeable
+            key={item.id}
+            renderRightActions={() => (
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleRemoveItem(item.id)}
+              >
+                <MaterialIcons name="delete" size={30} color="#fff" />
+              </TouchableOpacity>
+            )}
+          >
+            <View style={styles.productCard}>
+              <Text style={styles.productName}>{item.name}</Text>
+              <View style={styles.productDetails}>
+                <Text style={styles.productText}>Price: ${item.price.toFixed(2)}</Text>
+                <Text style={styles.productText}>Quantity: {item.quantity}</Text>
+                <Text style={styles.productText}>Total: ${item.totalPrice.toFixed(2)}</Text>
+              </View>
+              <View style={styles.quantityContainer}>
+                <TouchableOpacity
+                  onPress={() => handleDecreaseQuantity(item.id)}
+                  style={styles.quantityButton}
+                >
+                  <MaterialIcons name="remove" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleIncreaseQuantity(item.id)}
+                  style={styles.quantityButton}
+                >
+                  <MaterialIcons name="add" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
-          ))}
-        </View>
+          </Swipeable>
+        ))}
       </ScrollView>
 
-      {/* Total Bill and Proceed Button in One Row */}
       <View style={styles.totalContainer}>
-        <Text style={styles.totalText}>Total Bill: ${totalBill}</Text>
+        <Text style={styles.totalText}>Total Bill: ${totalBill.toFixed(2)}</Text>
         <TouchableOpacity style={styles.proceedButton} onPress={handleProceedToBilling}>
           <Text style={styles.proceedButtonText}>Proceed to Billing</Text>
         </TouchableOpacity>
@@ -69,7 +163,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginBottom: 20,
   },
-  cartTable: {
+  productCard: {
     backgroundColor: '#fff',
     padding: 15,
     marginBottom: 20,
@@ -79,46 +173,60 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  tableRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  tableHeader: {
-    fontSize: 16,
+  productName: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    width: '25%', // Controls the width of the header
+    marginBottom: 10,
   },
-  tableCell: {
+  productDetails: {
+    marginBottom: 10,
+  },
+  productText: {
     fontSize: 16,
     color: '#333',
-    width: '25%', // Controls the width of the cell
+    marginBottom: 5,
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  quantityButton: {
+    backgroundColor: '#4e92cc',
+    padding: 10,
+    borderRadius: 25,
+    marginHorizontal: 10,
   },
   totalContainer: {
-    flexDirection: 'row', // Align items horizontally
-    justifyContent: 'space-between', // Space out the text and button
-    alignItems: 'center', // Vertically center the items
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20,
   },
   totalText: {
     fontSize: 20,
     fontWeight: '600',
     color: '#333',
-    marginRight: 10, // To give some space between the text and the button
+    marginRight: 10,
   },
   proceedButton: {
     backgroundColor: '#4e92cc',
     padding: 12,
-    paddingHorizontal:20,
+    paddingHorizontal: 20,
     borderRadius: 10,
     alignItems: 'center',
   },
   proceedButtonText: {
     fontSize: 18,
     color: '#fff',
+  },
+  deleteButton: {
+    backgroundColor: '#f44336',
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 10,
   },
 });
 

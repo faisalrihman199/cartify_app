@@ -1,109 +1,165 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons'; // Import icons
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import { Ionicons } from '@expo/vector-icons'; // Import icons
+import Scanning from '../Components/Scanning/Scanning';
+import { useAPI } from '../Context/APIContext';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
 
 const ScanProductPage = () => {
-  const [productInfo, setProductInfo] = useState({
-    name: 'Product 1',
-    category: 'Electronics',
-    brand: 'Brand A',
-    price: 10,
-    productCode: 'P001',
-    description: 'A high-quality product',
-    quantity: 1,
-  });
+  const [productInfo, setProductInfo] = useState({});
+  const [scanning, setScanning] = useState(false);
+  const [barcode, setBarcode] = useState(null);
+  const [cartProducts, setCartProducts] = useState([]); // Array to store cart products
+  const [refreshing, setRefreshing] = useState(false); // State for refresh control
+  const { oneProduct } = useAPI();
 
   const changeProductInfo = () => {
-    // Logic to change the product info with the next scan
-    setProductInfo({
-      name: 'Product 2',
-      category: 'Clothing',
-      brand: 'Brand B',
-      price: 15,
-      productCode: 'P002',
-      description: 'Comfortable and stylish',
-      quantity: 1,
-    });
+    setScanning(true);
   };
 
-  const increaseQuantity = () => {
-    setProductInfo((prevInfo) => ({
-      ...prevInfo,
-      quantity: prevInfo.quantity + 1,
-    }));
-  };
+  // Load cart from AsyncStorage on mount
+  useEffect(() => {
+    const loadCart = async () => {
+      try {
+        const savedCart = await AsyncStorage.getItem('cart');
+        if (savedCart) {
+          setCartProducts(JSON.parse(savedCart));
+        }
+      } catch (error) {
+        console.error('Error loading cart:', error);
+      }
+    };
+    loadCart();
+  }, []);
 
-  const decreaseQuantity = () => {
-    setProductInfo((prevInfo) => ({
-      ...prevInfo,
-      quantity: prevInfo.quantity > 1 ? prevInfo.quantity - 1 : 1,
-    }));
-  };
+  // Save cart to AsyncStorage whenever it updates
+  useEffect(() => {
+    const saveCart = async () => {
+      try {
+        await AsyncStorage.setItem('cart', JSON.stringify(cartProducts));
+      } catch (error) {
+        console.error('Error saving cart:', error);
+      }
+    };
+    saveCart();
+  }, [cartProducts]);
+
+  useEffect(() => {
+    if (barcode) {
+      // Assuming oneProduct is a function that takes barcode and returns product info
+      oneProduct(barcode).then((response) => {
+        if (response.success) {
+          const { data } = response;
+          setProductInfo({
+            id: data.id,
+            name: data.productName,
+            category: 'Category ' + data.categoryId, // You'll need to map this from your categories
+            brand: 'Brand ' + data.brandId, // Map it similarly for the brand if necessary
+            price: data.productPrice,
+            productCode: data.productCode,
+            description: data.description,
+            quantity: 1, // Reset quantity to 1 for each new product
+          });
+        } else {
+          // Handle the error scenario here
+          console.log(response.message);
+        }
+      });
+    }
+  }, [barcode, oneProduct]);
 
   const handleAddToCart = () => {
-    // Cart functionality will be implemented later
-    console.log('Adding to cart...');
+    if (productInfo) {
+      setCartProducts((prevCart) => {
+        const updatedCart = [...prevCart, productInfo];
+        console.log('Updated Cart:', updatedCart); // Print the updated cart in the console
+        return updatedCart;
+      });
+    }
+  };
+
+  // Check if the product is already in the cart
+  const isProductInCart = cartProducts.some((item) => item.id === productInfo.id);
+
+  // Function to handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const savedCart = await AsyncStorage.getItem('cart');
+      if (savedCart) {
+        setCartProducts(JSON.parse(savedCart));
+      }
+    } catch (error) {
+      console.error('Error loading cart during refresh:', error);
+    }
+    setRefreshing(false);
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Scan Product</Text>
+    scanning ? (
+      <Scanning setScanning={setScanning} setBarcode={setBarcode} />
+    ) : (
+      <View style={styles.container}>
+        <Text style={styles.title}>Scan Product</Text>
 
-      {/* Barcode Scanner Button */}
-      <TouchableOpacity style={styles.scanButton} onPress={changeProductInfo}>
-        <Ionicons name="qr-code" size={30} color="#fff" />
-        <Text style={styles.scanButtonText}>Scan Barcode</Text>
-      </TouchableOpacity>
+        {/* Barcode Scanner Button */}
+        <TouchableOpacity style={styles.scanButton} onPress={changeProductInfo}>
+          <Ionicons name="qr-code" size={30} color="#fff" />
+          <Text style={styles.scanButtonText}>Scan Barcode</Text>
+        </TouchableOpacity>
 
-      {/* Scrollable Product Info Display */}
-      <ScrollView style={styles.productTableContainer}>
-        <View style={styles.productTable}>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Product Name</Text>
-            <Text style={styles.tableCell}>{productInfo.name}</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Category</Text>
-            <Text style={styles.tableCell}>{productInfo.category}</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Brand</Text>
-            <Text style={styles.tableCell}>{productInfo.brand}</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Price</Text>
-            <Text style={styles.tableCell}>${productInfo.price}</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Product Code</Text>
-            <Text style={styles.tableCell}>{productInfo.productCode}</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableHeader}>Description</Text>
-            <Text style={styles.tableCell}>{productInfo.description}</Text>
-          </View>
-        </View>
+        {/* Scrollable Product Info Display */}
+        {Object.keys(productInfo).length > 0 && (
+          <ScrollView
+            style={styles.productTableContainer}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          >
+            <View style={styles.productTable}>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableHeader}>Product Name</Text>
+                <Text style={styles.tableCell}>{productInfo.name}</Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableHeader}>Category</Text>
+                <Text style={styles.tableCell}>{productInfo.category}</Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableHeader}>Brand</Text>
+                <Text style={styles.tableCell}>{productInfo.brand}</Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableHeader}>Price</Text>
+                <Text style={styles.tableCell}>${productInfo.price}</Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableHeader}>Product Code</Text>
+                <Text style={styles.tableCell}>{productInfo.productCode}</Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableHeader}>Description</Text>
+                <Text style={styles.tableCell}>{productInfo.description}</Text>
+              </View>
+            </View>
+          </ScrollView>
+        )}
 
-        {/* Quantity Control */}
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity onPress={decreaseQuantity} style={styles.quantityButton}>
-            <MaterialIcons name="remove" size={20} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.quantityText}>{productInfo.quantity}</Text>
-          <TouchableOpacity onPress={increaseQuantity} style={styles.quantityButton}>
-            <MaterialIcons name="add" size={20} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Add to Cart Button (fixed at the bottom of the screen) */}
-      <TouchableOpacity
-        style={styles.addToCartButton}
-        onPress={handleAddToCart}
-      >
-        <Text style={styles.addToCartText}>Add to Cart</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Add to Cart Button (fixed at the bottom of the screen) */}
+        <TouchableOpacity
+          style={[
+            styles.addToCartButton,
+            (!productInfo || isProductInCart) && styles.disabledButton, // Disable style
+          ]}
+          onPress={handleAddToCart}
+          disabled={!productInfo || isProductInCart} // Disable button if no product info or product is already in cart
+        >
+          <Text style={styles.addToCartText}>
+            {isProductInCart ? 'Already in Cart' : 'Add to Cart'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    )
   );
 };
 
@@ -167,23 +223,6 @@ const styles = StyleSheet.create({
     color: '#333',
     width: '60%', // Controls the width of the cell
   },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  quantityButton: {
-    backgroundColor: '#4e92cc',
-    padding: 10,
-    borderRadius: 25,
-    marginHorizontal: 10,
-  },
-  quantityText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
   addToCartButton: {
     backgroundColor: '#006d77',
     padding: 15,
@@ -193,6 +232,9 @@ const styles = StyleSheet.create({
     bottom: 20, // Fixed at the bottom of the screen
     left: 20,
     right: 20,
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
   },
   addToCartText: {
     fontSize: 18,

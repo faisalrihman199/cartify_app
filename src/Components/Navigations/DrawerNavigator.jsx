@@ -18,6 +18,9 @@ import ProductPage from '../../Screens/ChildAdmin/ProductPage';
 import Brands from '../../Screens/ChildAdmin/BrandsPage';
 import POSBill from '../../Screens/ChildAdmin/POSBill';
 import AddProductPage from '../../Screens/ChildAdmin/AddProductPage';
+import PaymentScreen from '../../Screens/PaymentScreen';
+
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 const Drawer = createDrawerNavigator();
 
@@ -47,7 +50,13 @@ const DrawerNavigator = () => {
   // Dynamic drawer content and initial route
   const isAdmin = user?.role === 'admin';
   const initialRoute = isAdmin ? 'AdminDashboard' : 'Dashboard';
-
+  function PaymentScreenWrapper() {
+    return (
+      <StripeProvider publishableKey="pk_test_51PkvQAJnCuHDmbHeWHW7KiCwby2II1wzS8LLXfGK0LEHtjyC55ytBUJXaxPsyB4Hmv9I0hUA2xw9ahjOqrKjaMew001f4u75D0" >
+        <PaymentScreen />
+      </StripeProvider>
+    );
+  }
   return (
     <Drawer.Navigator
       initialRouteName={initialRoute}
@@ -99,6 +108,7 @@ const DrawerNavigator = () => {
           <Drawer.Screen name="Cart" component={CartPage} />
           <Drawer.Screen name="Bill" component={ProceedBill} />
           <Drawer.Screen name="BillHistory" component={BillHistory} />
+          <Drawer.Screen name="PaymentScreen" component={PaymentScreenWrapper} />
         </>
       )}
     </Drawer.Navigator>

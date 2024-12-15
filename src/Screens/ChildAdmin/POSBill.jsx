@@ -1,50 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, RefreshControl } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useAPI } from '../../Context/APIContext';
 import * as FileSystem from 'expo-file-system'; // For file management in React Native
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
-import { Buffer } from 'buffer';
-
-
-
+import * as Print from 'expo-print';  // Import expo-print for printing functionality
 
 const POSBill = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentBillIndex, setCurrentBillIndex] = useState(0);
   const [bills, setBills] = useState([]); // State for holding bills fetched from API
+  const [isRefreshing, setIsRefreshing] = useState(false); // State to manage refreshing
   const { posBills, paidBill, printBill } = useAPI();
 
   useEffect(() => {
-    // Fetch bills from the API on component mount
-    posBills()
-      .then(response => {
-        if (response.success && response.data && Array.isArray(response.data.pendingBills)) {
-          const fetchedBills = response.data.pendingBills.map(bill => ({
-            customerName: bill.customerName,
-            billID: bill.billId,
-            id:bill.id,
-            cartItems: bill.productData.map(product => ({
-              name: product.product,
-              quantity: parseInt(product.quantity, 10),
-              price: parseFloat(product.price),
-              totalPrice: parseFloat(product.total),
-              weight: parseFloat(product.weight), // Adding weight field
-            })),
-            totalWeight: parseFloat(bill.totalWeight),
-            totalBill: parseFloat(bill.totalBilling),
-          }));
-          setBills(fetchedBills);
-        } else {
-          Alert.alert('Error', 'No bills data found');
-        }
-      })
-      .catch(error => {
-        Alert.alert('Error', 'Failed to fetch bills');
-        console.error('Error fetching bills:', error);
-      });
+    fetchBills(); // Fetch bills on component mount
   }, [posBills]);
+
+  const fetchBills = async () => {
+    setIsRefreshing(true);
+    try {
+      const response = await posBills();
+      if (response.success && response.data && Array.isArray(response.data.pendingBills)) {
+        const fetchedBills = response.data.pendingBills.map(bill => ({
+          customerName: bill.customerName,
+          billID: bill.billId,
+          id: bill.id,
+          cartItems: bill.productData.map(product => ({
+            name: product.product,
+            quantity: parseInt(product.quantity, 10),
+            price: parseFloat(product.price),
+            totalPrice: parseFloat(product.total),
+            weight: parseFloat(product.weight), // Adding weight field
+          })),
+          totalWeight: parseFloat(bill.totalWeight),
+          totalBill: parseFloat(bill.totalBilling),
+        }));
+        setBills(fetchedBills);
+      } else {
+        Alert.alert('Error', 'No bills data found');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch bills');
+      console.error('Error fetching bills:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const filteredBills = bills.filter(bill => bill.customerName.toLowerCase().includes(searchQuery.toLowerCase()));
   const currentBill = filteredBills[currentBillIndex];
@@ -60,68 +63,83 @@ const POSBill = () => {
   const handlePrintBill = async () => {
     try {
       if (currentBill && currentBill.billID) {
-        // API call to fetch the bill
-        const response = await printBill(currentBill.billID);  
-        if (!response) {
-          throw new Error('Failed to fetch the file.');
-        }
-        let base64Data;
-        if (typeof response === 'string') {
-          // Assume response is Base64 if it's a string
-          base64Data = response;
-        } else {
-          // Convert binary response to Base64
-          base64Data = Buffer.from(response, 'binary').toString('base64');
-        }
-        // Ensure the data is a valid Base64 string
-        if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
-          throw new Error('Invalid Base64 data received.');
-        }
-        const fileUri = `${FileSystem.documentDirectory}${currentBill.billID}.pdf`;
-        // Write the Base64 string to a file
-        await FileSystem.writeAsStringAsync(fileUri, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
+        // Create HTML content for the bill
+        const htmlContent = `
+          <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; }
+                .header { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+                .bill-id, .customer-name { font-size: 16px; margin-bottom: 5px; }
+                .table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+                .table th, .table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
+                .total { font-size: 18px; font-weight: bold; text-align: right; }
+                .footer { text-align: center; margin-top: 20px; }
+              </style>
+            </head>
+            <body>
+              <div class="header">POS System</div>
+              <div class="bill-id">Bill ID: ${currentBill.billID}</div>
+              <div class="customer-name">Customer: ${currentBill.customerName}</div>
+
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Weight</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${currentBill.cartItems.map(item => `
+                    <tr>
+                      <td>${item.name}</td>
+                      <td>${item.quantity}</td>
+                      <td>$${item.price.toFixed(2)}</td>
+                      <td>${item.weight}g</td>
+                      <td>$${item.totalPrice.toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+
+              <div class="total">Total: $${totalBill.toFixed(2)}</div>
+              <div class="total">Total Weight: ${currentBill.totalWeight}g</div>
+
+              <div class="footer">Thank you for shopping with us!</div>
+            </body>
+          </html>
+        `;
+        
+        // Use expo-print to print the HTML content
+        await Print.printAsync({
+          html: htmlContent,
         });
-  
-        // Share the file if sharing is available
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(fileUri);
-        } else {
-          console.log('Sharing is not available on this device.');
-        }
       } else {
         throw new Error('No bill selected or invalid bill ID.');
       }
     } catch (error) {
-      console.error('Error:', error.message || error);
+      console.error('Error printing bill:', error.message || error);
     }
   };
 
-  
-  
-
   const handlePaid = () => {
     if (currentBill && currentBill.billID) {
-      
       paidBill(currentBill.id)
         .then(response => {
-         
-          
           if (response.success) {
-            // Alert on success
             Alert.alert('Success', `Bill ID: ${currentBill.billID} has been marked as paid.`);
           } else {
-            // Alert on failure
             Alert.alert('Error', `Failed to mark Bill ID: ${currentBill.billID} as paid.`);
           }
         })
         .catch(error => {
-          // Handle error if API call fails
           Alert.alert('Error', 'Failed to mark the bill as paid.');
           console.error('Error marking bill as paid:', error);
         });
     } else {
-      // Alert if currentBill or billID is not available
       Alert.alert('Error', 'No bill selected or invalid bill ID.');
     }
   };
@@ -140,7 +158,15 @@ const POSBill = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollableContent}>
+      <ScrollView
+        style={styles.scrollableContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={fetchBills}
+          />
+        }
+      >
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <TextInput
@@ -164,15 +190,15 @@ const POSBill = () => {
                 <Text style={styles.tableHeader}>Product</Text>
                 <Text style={styles.tableHeader}>Quantity</Text>
                 <Text style={styles.tableHeader}>Price</Text>
-                <Text style={styles.tableHeader}>Weight</Text> {/* Added Weight Column */}
+                <Text style={styles.tableHeader}>Weight</Text>
                 <Text style={styles.tableHeader}>Total</Text>
               </View>
               {currentBill.cartItems.map((item, index) => (
                 <View key={index} style={styles.tableRow}>
                   <Text style={styles.tableCell}>{item.name}</Text>
-                  <Text style={[styles.tableCell, styles.centered]}>{item.quantity}</Text> {/* Centered Quantity */}
+                  <Text style={[styles.tableCell, styles.centered]}>{item.quantity}</Text>
                   <Text style={styles.tableCell}>${item.price.toFixed(2)}</Text>
-                  <Text style={styles.tableCell}>{item.weight}g</Text> {/* Displaying Weight */}
+                  <Text style={styles.tableCell}>{item.weight}g</Text>
                   <Text style={styles.tableCell}>${item.totalPrice.toFixed(2)}</Text>
                 </View>
               ))}
@@ -341,5 +367,4 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
-
 export default POSBill;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useFonts } from 'expo-font';
@@ -12,22 +12,20 @@ import OnboardingScreen from './src/Screens/OnboardingScreen';
 import Forgot from './src/Screens/Forgot';
 import DrawerNavigator from './src/Components/Navigations/DrawerNavigator';
 import { APIProvider } from './src/Context/APIContext';
-import { StripeProvider } from '@stripe/stripe-react-native';
+import { LogBox } from 'react-native';
 
 const Stack = createStackNavigator();
 
-function PaymentScreenWrapper() {
-  return (
-    <StripeProvider publishableKey="pk_test_51PkDz0P8oBD9hDwO9YL7BBXyb5SNBV9vlYYMUVSd50EkSOY57QjGqSWBIpmEY23pnrDF8y2Q8D01UOP1BF0yTkzP00BaKZfPBl">
-      <PaymentScreen />
-    </StripeProvider>
-  );
-}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
     'Outfit': require('./src/assets/fonts/Outfit-Regular.ttf'), // Path to your Outfit font file
   });
+  
+  useEffect(() => {
+    // Ignore specific warning messages
+    LogBox.ignoreLogs(['Warning: ...']); // Add the warning text to ignore
+  }, []);
 
   if (!fontsLoaded) {
     return <AppLoading />;
@@ -48,7 +46,7 @@ export default function App() {
           <Stack.Screen name="Otp" component={OTPScreen} />
 
           {/* PaymentScreen wrapped in StripeProvider */}
-          <Stack.Screen name="PaymentScreen" component={PaymentScreenWrapper} />
+          {/* <Stack.Screen name="PaymentScreen" component={PaymentScreenWrapper} /> */}
 
           {/* Main Application - Drawer Navigation */}
           <Stack.Screen name="MainApp" component={DrawerNavigator} />

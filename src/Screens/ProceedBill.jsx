@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, A
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAPI } from '../Context/APIContext';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import * as Print from 'expo-print'; // Import expo-print
 
 const ProceedBillPage = () => {
   const [cartItems, setCartItems] = useState([]);
@@ -12,7 +13,7 @@ const ProceedBillPage = () => {
   const [totalWeight, setTotalWeight] = useState(0);
   const [totalBilling, setTotalBilling] = useState(0);
   const [isCartEmpty, setIsCartEmpty] = useState(true); // State to track if cart is empty
-  const [billData,setBillData]=useState(null);
+  const [billData, setBillData] = useState(null);
   const { proceedBill, sendPOS } = useAPI();
   const navigate = useNavigation();
 
@@ -32,8 +33,8 @@ const ProceedBillPage = () => {
       const name = await AsyncStorage.getItem('customerName');
       const bill = await AsyncStorage.getItem('billID');
 
-      setCustomerName(name || 'John Doe');
-      setBillID(bill || 'BILL123456');
+      setCustomerName(name || '');
+      setBillID(bill || '');
 
       const refinedData = cart.map((item) => ({
         productId: item.id,
@@ -93,8 +94,92 @@ const ProceedBillPage = () => {
 
   const handlePayOnline = () => {
     console.log('Processing online payment...');
-    if(billID){
-      navigate.navigate('PaymentScreen',{state:billData});
+    if (billID) {
+      navigate.navigate('PaymentScreen', { state: billData });
+    }
+  };
+
+  // Function to generate and print the bill
+  const handlePrintBill = async () => {
+    const billHTML = `
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            .table th, .table td {
+              padding: 8px;
+              text-align: left;
+              border-bottom: 1px solid #ddd;
+            }
+            .total {
+              font-weight: bold;
+              margin-top: 20px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 40px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Cartify - Invoice</h1>
+            <p>Bill ID: ${billID}</p>
+            <p>Customer: ${customerName}</p>
+            <p>Date: ${new Date().toLocaleDateString()}</p>
+          </div>
+
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cartItems.map((item) => `
+                <tr>
+                  <td>${item.name}</td>
+                  <td>${item.quantity}</td>
+                  <td>$${item.price.toFixed(2)}</td>
+                  <td>$${item.totalPrice.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="total">
+            <p>Total Price: $${totalBill.toFixed(2)}</p>
+            <p>Total Weight: ${totalWeight} grams</p>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for shopping with us!</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    try {
+      // Use expo-print to print the HTML content
+      await Print.printAsync({
+        html: billHTML,
+      });
+    } catch (error) {
+      console.log('Error printing bill:', error);
     }
   };
 
@@ -112,9 +197,7 @@ const ProceedBillPage = () => {
     <View style={styles.container}>
       <ScrollView
         style={styles.scrollableContent}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />}
       >
         {!isCartEmpty && (
           <View style={styles.receiptContainer}>
@@ -152,7 +235,8 @@ const ProceedBillPage = () => {
       <View style={styles.downloadButtonContainer}>
         <TouchableOpacity
           style={styles.downloadButton}
-          onPress={handleDownloadBill}
+          onPress={handlePrintBill}
+
           disabled={isCartEmpty} // Disable button if cart is empty
         >
           <Text style={styles.downloadButtonText}>Download Bill as PDF</Text>
@@ -163,6 +247,7 @@ const ProceedBillPage = () => {
         <TouchableOpacity
           style={styles.actionButton}
           onPress={handleSendToPOS}
+
           disabled={isCartEmpty} // Disable button if cart is empty
         >
           <Text style={styles.actionButtonText}>Send to POS</Text>
@@ -174,6 +259,7 @@ const ProceedBillPage = () => {
         >
           <Text style={styles.actionButtonText}>Pay Online</Text>
         </TouchableOpacity>
+        
       </View>
     </View>
   );

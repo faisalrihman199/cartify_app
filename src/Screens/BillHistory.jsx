@@ -1,27 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Platform, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Platform, RefreshControl, Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { useAPI } from '../Context/APIContext';
+import * as Print from 'expo-print';
 
 const BillHistoryPage = () => {
-  // Sample bills data
+  // State variables
   const [bills, setBills] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);  // for swipe refresh control
-  const { billHostory } = useAPI();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { billHostory, printBill } = useAPI();
 
-  // Fetch bills when the page mounts
+  // Fetch bills
   const fetchBills = () => {
     billHostory(startDate, endDate, searchText)
       .then((res) => {
         console.log("Bills fetched:", res);
-        // Extract posBills from response and update state
-        setBills(res.data.posBills);  // Assuming the response structure contains 'data.posBills'
+        setBills(res.data.posBills); // Assuming the response contains 'data.posBills'
       })
       .catch((err) => {
         console.log("Error fetching bills:", err);
@@ -30,7 +30,7 @@ const BillHistoryPage = () => {
 
   useEffect(() => {
     fetchBills();
-  }, []); // Empty array means this runs once when the component mounts
+  }, []); // Fetch bills once when the page mounts
 
   // Filter bills based on Bill ID and Date Range
   const filteredBills = bills.filter((bill) => {
@@ -42,7 +42,145 @@ const BillHistoryPage = () => {
     );
   });
 
-  // Handling Date Picker Change
+  // Handle download button click (fetch and print bill)
+  const handleDownloadBill = (billId) => {
+    printBill(billId)
+      .then((res) => {
+        if (res.success) {
+          // Generate the HTML for printing
+          const billData = res.data;
+
+          // If there are multiple products, we loop through the products
+          const productList = Array.isArray(billData.product) ? billData.product : [billData.product]; // To handle multiple products
+          const productsHTML = productList.map(product => `
+            <tr>
+              <td style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">${product.productName}</td>
+              <td style="padding: 10px; text-align: center; border-bottom: 1px solid #ddd;">${product.productPrice}</td>
+              <td style="padding: 10px; text-align: center; border-bottom: 1px solid #ddd;">${billData.quantity}</td>
+              <td style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">${(parseFloat(product.productPrice) * billData.quantity).toFixed(2)}</td>
+            </tr>
+          `).join('');
+
+          const billHTML = `
+            <html>
+              <head>
+                <style>
+                  body {
+                    font-family: Arial, sans-serif;
+                    margin: 40px;
+                    color: #333;
+                  }
+                  .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                  }
+                  .header h1 {
+                    font-size: 28px;
+                    color: #4e92cc;
+                  }
+                  .header p {
+                    font-size: 18px;
+                    color: #666;
+                  }
+                  .bill-details {
+                    margin-bottom: 30px;
+                    padding: 20px;
+                    background-color: #fafafa;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                  }
+                  .bill-details p {
+                    font-size: 16px;
+                    line-height: 1.6;
+                    margin: 10px 0;
+                  }
+                  .bill-details p strong {
+                    color: #4e92cc;
+                  }
+                  table {
+                    width: 100%;
+                    margin-top: 20px;
+                    border-collapse: collapse;
+                  }
+                  th, td {
+                    padding: 10px;
+                    text-align: left;
+                    font-size: 16px;
+                  }
+                  th {
+                    background-color: #4e92cc;
+                    color: #fff;
+                    text-align: center;
+                  }
+                  td {
+                    border-bottom: 1px solid #ddd;
+                  }
+                  .total {
+                    font-weight: bold;
+                    font-size: 20px;
+                    text-align: right;
+                    margin-top: 20px;
+                    color: #333;
+                  }
+                  .footer {
+                    text-align: center;
+                    margin-top: 40px;
+                    font-size: 14px;
+                    color: #888;
+                  }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h1>Invoice - ${billData.billId}</h1>
+                  <p>Status: Paid | Date: ${new Date(billData.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div class="bill-details">
+                  <p><strong>Customer Name:</strong> ${billData.customer.name}</p>
+                  <p><strong>Bill ID:</strong> ${billData.billId}</p>
+                  <p><strong>Date:</strong> ${new Date(billData.createdAt).toLocaleDateString()}</p>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Price</th>
+                      <th>Quantity</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${productsHTML}
+                  </tbody>
+                </table>
+                <div class="total">
+                  <p>Total: $${parseFloat(billData.totalPrice).toFixed(2)}</p>
+                </div>
+                <div class="footer">
+                  <p>Thank you for your purchase!</p>
+                </div>
+              </body>
+            </html>
+          `;
+
+          // Print the bill HTML content
+          Print.printAsync({
+            html: billHTML,
+          }).catch((error) => {
+            console.log('Error printing bill:', error);
+            Alert.alert('Error printing bill');
+          });
+        } else {
+          Alert.alert(res.message || 'Failed to fetch bill data');
+        }
+      })
+      .catch((err) => {
+        console.log('Error in printBill:', err);
+        Alert.alert('Error fetching bill details');
+      });
+  };
+
+  // Date picker handlers
   const onStartDateChange = (event, selectedDate) => {
     const currentDate = selectedDate || startDate;
     setShowStartDatePicker(Platform.OS === 'ios' ? true : false);

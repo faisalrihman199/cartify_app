@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { EvilIcons } from '@expo/vector-icons';
+import { useAPI } from '../Context/APIContext';
 
 const UserProfilePage = () => {
   const [name, setName] = useState('Arslan Arshad');
@@ -36,6 +37,9 @@ const UserProfilePage = () => {
   const handleSaveProfile = () => {
     Alert.alert('Profile Updated', 'Your profile details have been updated successfully!');
   };
+  const {getUser}=useAPI();
+  const user=getUser()?._j;
+
 
   return (
     <KeyboardAvoidingView
@@ -44,16 +48,7 @@ const UserProfilePage = () => {
     >
       <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>
-          <Text style={styles.header}>{name}</Text>
-
-          {/* Profile Picture */}
-          <View style={styles.profilePicContainer}>
-            <Image source={{ uri: profilePic }} style={styles.profilePic} />
-            <TouchableOpacity style={styles.editIcon} onPress={pickImage}>
-              <EvilIcons name="camera" size={30} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
+          <Text style={styles.header}>{user?.name}</Text>
           {/* Name Input */}
           <TextInput
             style={styles.input}

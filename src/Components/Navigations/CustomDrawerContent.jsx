@@ -4,10 +4,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons'; 
 import { useNavigation } from "@react-navigation/native";
 import * as Linking from 'expo-linking';  // Import Linking to open WhatsApp
+import { useAPI } from '../../Context/APIContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CustomDrawerContent = (props) => {
     const navigation = useNavigation();
     const [modalVisible, setModalVisible] = useState(false);  // State to control modal visibility
+    const {getUser}=useAPI();
+    const user=getUser()?._j;
+    const handleLogout=async()=>{
+      await AsyncStorage.removeItem('user');
+      navigation.navigate('Login');
+
+    }
 
     // Function to open WhatsApp
     const openWhatsApp = () => {
@@ -26,7 +35,7 @@ const CustomDrawerContent = (props) => {
                     source={{ uri: 'https://randomuser.me/api/portraits/men/9.jpg' }}
                     style={styles.profilePic}
                 />
-                <Text style={styles.userName}>Arslan Arshad</Text>
+                <Text style={styles.userName}>{user?.name}</Text>
             </View>
 
             {/* Menu Items */}
@@ -106,7 +115,10 @@ const CustomDrawerContent = (props) => {
             <View style={styles.bottomSection}>
                 <TouchableOpacity
                     style={styles.drawerItemContainer}
-                    onPress={() => navigation.navigate("Login")}
+                    onPress={async() => {
+                      await AsyncStorage.removeItem('user');
+                      navigation.navigate('Login');
+                    }}
                 >
                     <MaterialIcons name="logout" size={20} color="#ffffff" style={styles.icon} />
                     <Text style={styles.drawerItem}>Logout</Text>

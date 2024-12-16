@@ -8,7 +8,7 @@ const Dashboard = ({ navigation }) => {
 
   // Function to open WhatsApp chat
   const openWhatsApp = () => {
-    const phoneNumber = '+923021161032'; // Replace with the actual phone number
+    const phoneNumber = '+923355834586'; // Replace with the actual phone number
     const message = 'Hello, I need support!'; // Predefined message
     const url = `whatsapp://send?phone=${phoneNumber}&text=${message}`;
 

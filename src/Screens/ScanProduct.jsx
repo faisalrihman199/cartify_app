@@ -48,13 +48,15 @@ const ScanProductPage = () => {
     if (barcode) {
       // Assuming oneProduct is a function that takes barcode and returns product info
       oneProduct(barcode).then((response) => {
+        console.log("Response :", response);
+        
         if (response.success) {
           const { data } = response;
           setProductInfo({
             id: data.id,
             name: data.productName,
-            category: 'Category ' + data.categoryId, // You'll need to map this from your categories
-            brand: 'Brand ' + data.brandId, // Map it similarly for the brand if necessary
+            category:data.category?.name, // You'll need to map this from your categories
+            brand:   data.brand?.name, // Map it similarly for the brand if necessary
             price: data.productPrice,
             productCode: data.productCode,
             description: data.description,

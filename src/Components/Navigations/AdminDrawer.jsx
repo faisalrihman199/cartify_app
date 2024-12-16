@@ -3,10 +3,14 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Alert } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons'; 
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AdminDrawer = (props) => {
     const navigation = useNavigation();
-
+    const handleLogout=async()=>{
+      await AsyncStorage.removeItem('cart');
+      navigation.navigate('Login');
+    }
     
 
     return (
@@ -21,6 +25,14 @@ const AdminDrawer = (props) => {
             </View>
 
             {/* Menu Items */}
+            <TouchableOpacity
+                style={styles.drawerItemContainer}
+                onPress={() => props.navigation.navigate('AdminDashboard')}
+            >
+                <Ionicons name="list-outline" size={20} color="#ffffff" style={styles.icon} />
+                <Text style={styles.drawerItem}>Dashboard</Text>
+            </TouchableOpacity>
+            <View style={styles.separator} />
             <TouchableOpacity
                 style={styles.drawerItemContainer}
                 onPress={() => props.navigation.navigate('Categories')}
@@ -83,7 +95,10 @@ const AdminDrawer = (props) => {
             <View style={styles.bottomSection}>
                 <TouchableOpacity
                     style={styles.drawerItemContainer}
-                    onPress={() => navigation.navigate("Login")}
+                    onPress={async() => {
+                      await AsyncStorage.removeItem('user');
+                      navigation.navigate('Login');
+                    }}
                 >
                     <MaterialIcons name="logout" size={20} color="#ffffff" style={styles.icon} />
                     <Text style={styles.drawerItem}>Logout</Text>

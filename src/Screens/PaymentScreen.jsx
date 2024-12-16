@@ -14,6 +14,7 @@ import { CardField, useStripe } from "@stripe/stripe-react-native";
 import { useAPI } from "../Context/APIContext";
 import { useRoute } from "@react-navigation/native";
 import Spinner from "react-native-loading-spinner-overlay"; // Import the spinner
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const PaymentScreen = () => {
   const { confirmPayment } = useStripe();
@@ -71,7 +72,9 @@ const PaymentScreen = () => {
           setPaymentStatus(`Payment failed: ${error.message}`);
           console.error("Payment Error:", error);
         } else if (paymentIntent) {
+          
           setPaymentStatus("Payment Successful!");
+          await AsyncStorage.removeItem('cart');
           Alert.alert('Success', 'You Payment is successfully Proceed.');
 
           console.log("Payment Successful!", paymentIntent);

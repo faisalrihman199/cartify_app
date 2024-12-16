@@ -8,15 +8,14 @@ import { useNavigation } from '@react-navigation/native';
 const CartPage = () => {
   const [cartItems, setCartItems] = useState([]);
   const [refreshing, setRefreshing] = useState(false); // For managing the refreshing state
-  const navigate=useNavigation();
-  useEffect(() => {
-    onRefresh(); // Call onRefresh immediately when the page mounts
-  }, []);
+  const navigate = useNavigation();
 
   // Load cart items from AsyncStorage
   const loadCartItems = async () => {
     try {
       const savedCartItems = await AsyncStorage.getItem('cart');
+      console.log("Saved Cart :", savedCartItems);
+      
       if (savedCartItems) {
         const parsedItems = JSON.parse(savedCartItems);
         const updatedItems = parsedItems.map(item => ({
@@ -24,7 +23,9 @@ const CartPage = () => {
           price: parseFloat(item.price),
           totalPrice: item.price * item.quantity,
         }));
-        setCartItems(updatedItems);
+        setCartItems(updatedItems); // Set the state with updated cart items
+      } else {
+        setCartItems([]); // Clear the cart if no items are found
       }
     } catch (error) {
       console.error('Failed to load cart items:', error);
@@ -40,10 +41,10 @@ const CartPage = () => {
         console.error('Failed to save cart items:', error);
       }
     };
-
     saveCartItems();
   }, [cartItems]);
 
+  // Increase quantity of a cart item
   const handleIncreaseQuantity = (itemId) => {
     setCartItems((prevItems) =>
       prevItems.map((item) =>
@@ -58,6 +59,7 @@ const CartPage = () => {
     );
   };
 
+  // Decrease quantity of a cart item
   const handleDecreaseQuantity = (itemId) => {
     setCartItems((prevItems) => {
       const updatedItems = prevItems.map((item) => {
@@ -74,20 +76,24 @@ const CartPage = () => {
     });
   };
 
+  // Remove item from the cart
   const handleRemoveItem = (itemId) => {
     setCartItems((prevItems) => prevItems.filter((item) => item.id !== itemId));
   };
 
+  // Navigate to Billing page
   const handleProceedToBilling = () => {
-    navigate.navigate('Bill')
+    navigate.navigate('Bill');
   };
 
+  // On refresh, reload the cart items from AsyncStorage
   const onRefresh = async () => {
     setRefreshing(true);
     await loadCartItems(); // Re-load cart items when refreshing
     setRefreshing(false);
   };
 
+  // Calculate the total bill
   const totalBill = cartItems.reduce((acc, item) => acc + item.totalPrice, 0);
 
   return (
